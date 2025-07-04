@@ -1,0 +1,25 @@
+{
+  "name": "wikirag",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912",
+  "dependencies": {
+    "@langchain/openai": "^0.5.16",
+    "@qdrant/js-client-rest": "^1.14.1",
+    "sax": "^1.4.1",
+    "unbzip2-stream": "^1.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.7",
+    "@types/sax": "^1.2.7",
+    "@types/unbzip2-stream": "^1.4.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,3 @@
+*.bz2
+qdrant_data/
+node_modules/
