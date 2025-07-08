@@ -1,10 +1,12 @@
-import fs from 'fs';
-import unbzip2 from 'unbzip2-stream';
+import fs from 'node:fs';
+import path from 'path';
+import bz2 from 'unbzip2-stream';
 import sax from 'sax';
 import { QdrantClient } from '@qdrant/js-client-rest'
 import { OpenAIEmbeddings } from '@langchain/openai';
 
 const client = new QdrantClient({ url: 'http://localhost:6333' });
+
 const embeddings = new OpenAIEmbeddings({
   openAIApiKey: process.env.OPENAI_API_KEY,
   model: 'text-embedding-3-small',
@@ -31,7 +33,7 @@ async function embedPage(page: Record<string, string>) {
 }
 
 async function main() {
-  const xmlStream = sax.createStream(false, { trim: true, normalize: true });
+  const xmlStream = sax.createStream(true, { trim: true, normalize: true });
 
   let tag: string | null = null;
   let page: Record<string, string> | null = null;
@@ -45,19 +47,6 @@ async function main() {
       page = {};
     }
     tag = node.name;
-  });
-
-  xmlStream.on("closetag", (tagName) => {
-    if (tagName === "page" && page) {
-      embedPage(page)
-        .then(() => {
-          console.log(`Processed page: ${page!.title}`);
-        })
-        .catch((error) => {
-          console.error(`Error processing page ${page!.title}:`, error);
-        });
-      page = null;
-    }
   });
 
   xmlStream.on("text", (text) => {
@@ -76,10 +65,19 @@ async function main() {
     }
   });
 
-  fs
-    .createReadStream('./enwiki-latest-pages-articles.xml.bz2')
-    .pipe(unbzip2())
-    .pipe(xmlStream);
+  xmlStream.on("closetag", (tagName) => {
+    if (tagName === "page" && page) {
+      console.log("xml close tag received", tagName, page.title, page.id);
+      page = null;
+    }
+  });
+
+  const readStream = fs.createReadStream(path.join(process.cwd(), 'enwiki-latest-pages-articles.xml.bz2')).pipe(bz2()).pipe(xmlStream);
+
+  await new Promise((resolve, reject) => {
+    readStream.on('end', resolve);
+    readStream.on('error', reject);
+  });
 }
 
 main()
