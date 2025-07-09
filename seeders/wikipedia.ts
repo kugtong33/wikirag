@@ -15,10 +15,16 @@ const embeddings = new OpenAIEmbeddings({
 async function embedPage(page: Record<string, string>) {
   if (!page.text) return;
 
-  const chunks = page.text.split(/\n\s*\n+/g).filter(p => p.trim() !== '');
+  // a rudimentary of splitting the content per sentence
+  // TODO find a library that removes a lot of formatting characters in wikipedia text
+  const chunks = page.text.split(/\.\s/).filter(p => p.trim() !== '');
 
-  for (const chunk of chunks) {
+  console.log("Processing chunk for page:", page.id, page.title, " chunk length:", chunks.length);
+
+  for (const [index, chunk] of chunks) {
     const vector = await embeddings.embedQuery(chunk);
+
+    console.log("Embedding chunk ", index , "of ", chunks.length);
 
     await client.upsert('wikipedia', {
       points: [
@@ -45,6 +51,7 @@ async function main() {
   xmlStream.on("opentag", (node) => {
     if (node.name === "page") {
       page = {};
+      page.text = '';
     }
     tag = node.name;
   });
@@ -60,14 +67,17 @@ async function main() {
         page.id = text;
         break;
       case 'text':
-        page.text = text;
+        page.text += text;
         break;
     }
   });
 
-  xmlStream.on("closetag", (tagName) => {
+  xmlStream.on("closetag", async (tagName) => {
     if (tagName === "page" && page) {
-      console.log("xml close tag received", tagName, page.title, page.id);
+      await embedPage(page).catch((error) => {
+        console.error("Error processing page:", page!.title, error);
+      });
+
       page = null;
     }
   });

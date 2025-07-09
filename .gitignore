@@ -1,3 +1,5 @@
 *.bz2
+*.notes
+notes.md
 qdrant_data/
 node_modules/
