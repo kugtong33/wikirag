@@ -1,7 +1,10 @@
+import R from 'ramda';
 import fs from 'node:fs';
 import path from 'path';
 import bz2 from 'unbzip2-stream';
 import sax from 'sax';
+import PQueue from 'p-queue'
+
 import { QdrantClient } from '@qdrant/js-client-rest'
 import { OpenAIEmbeddings } from '@langchain/openai';
 
@@ -12,10 +15,12 @@ const embeddings = new OpenAIEmbeddings({
   model: 'text-embedding-3-small',
 });
 
+const pqueue = new PQueue({ concurrency: 10 });
+
 async function embedPage(page: Record<string, string>) {
   if (!page.text) return;
 
-  // a rudimentary of splitting the content per sentence
+  // a rudimentary splitting of content per sentence
   // TODO find a library that removes a lot of formatting characters in wikipedia text
   const chunks = page.text.split(/\.\s/).filter(p => p.trim() !== '');
 
@@ -39,7 +44,8 @@ async function embedPage(page: Record<string, string>) {
 }
 
 async function main() {
-  const xmlStream = sax.createStream(true, { trim: true, normalize: true });
+  const xmlStream = sax.createStream(true, { xmlns: true, trim: true, normalize: true });
+  const readStream = fs.createReadStream(path.join(process.cwd(), 'enwiki-latest-pages-articles.xml.bz2')).pipe(bz2()).pipe(xmlStream);
 
   let tag: string | null = null;
   let page: Record<string, string> | null = null;
@@ -74,18 +80,17 @@ async function main() {
 
   xmlStream.on("closetag", async (tagName) => {
     if (tagName === "page" && page) {
-      await embedPage(page).catch((error) => {
-        console.error("Error processing page:", page!.title, error);
-      });
+      pqueue.add(() => embedPage(R.clone(page!)));
 
       page = null;
     }
   });
 
-  const readStream = fs.createReadStream(path.join(process.cwd(), 'enwiki-latest-pages-articles.xml.bz2')).pipe(bz2()).pipe(xmlStream);
-
-  await new Promise((resolve, reject) => {
-    readStream.on('end', resolve);
+  await new Promise<void>((resolve, reject) => {
+    readStream.on('end', async () => {
+      await pqueue.onIdle();
+      resolve();
+    });
     readStream.on('error', reject);
   });
 }
