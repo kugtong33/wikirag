@@ -26,29 +26,33 @@ async function embedPage(page: Record<string, string>) {
 
   console.log("Processing chunk for page:", page.id, page.title, " chunk length:", chunks.length);
 
-  for (const [index, chunk] of chunks) {
-    const vector = await embeddings.embedQuery(chunk);
+  // for (const [index, chunk] of chunks) {
+  //   const vector = await embeddings.embedQuery(chunk);
 
-    console.log("Embedding chunk ", index , "of ", chunks.length);
+  //   console.log("Embedding chunk ", index , "of ", chunks.length);
 
-    await client.upsert('wikipedia', {
-      points: [
-        {
-          id: `${page.id}-${Math.random().toString(36).substring(2, 15)}`,
-          payload: { title: page.title, text: chunk},
-          vector,
-        }
-      ],
-    })
-  }
+  //   await client.upsert('wikipedia', {
+  //     points: [
+  //       {
+  //         id: `${page.id}-${Math.random().toString(36).substring(2, 15)}`,
+  //         payload: { title: page.title, text: chunk},
+  //         vector,
+  //       }
+  //     ],
+  //   })
+  // }
 }
 
 async function main() {
   const xmlStream = sax.createStream(true, { xmlns: true, trim: true, normalize: true });
-  const readStream = fs.createReadStream(path.join(process.cwd(), 'enwiki-latest-pages-articles.xml.bz2')).pipe(bz2()).pipe(xmlStream);
+  const readStream = fs
+    .createReadStream(path.join(process.cwd(), 'enwiki-latest-pages-articles.xml.bz2'))
+    .pipe(bz2())
+    .pipe(xmlStream);
 
   let tag: string | null = null;
   let page: Record<string, string> | null = null;
+  let isPage = false;
 
   xmlStream.on("error", (error) => {
     console.error("Error parsing XML:", error);
@@ -58,12 +62,14 @@ async function main() {
     if (node.name === "page") {
       page = {};
       page.text = '';
+      isPage = true;
     }
+
     tag = node.name;
   });
 
   xmlStream.on("text", (text) => {
-    if (!page || !tag) return;
+    if (!isPage || !page || !tag) return;
 
     switch(tag) {
       case 'title':
@@ -80,9 +86,10 @@ async function main() {
 
   xmlStream.on("closetag", async (tagName) => {
     if (tagName === "page" && page) {
-      pqueue.add(() => embedPage(R.clone(page!)));
+      pqueue.add(() => embedPage(R.clone(page!)), { id: page.id });
 
       page = null;
+      isPage = false;
     }
   });
 
